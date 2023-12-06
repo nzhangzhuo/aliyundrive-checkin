@@ -1,52 +1,55 @@
-import os
-import re
-import argparse
-from aliyundrive import Aliyundrive
-from message_send import MessageSend
+import datetime
+import time
+
+import requests
+
+import aliyun_token
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--token_string', type=str, required=True)
-    args = parser.parse_args()
+def get_access_token(token):
+    url = 'https://auth.aliyundrive.com/v2/account/token'
+    payload = {'grant_type': 'refresh_token', 'refresh_token': token}
 
-    token_string = args.token_string
-    pushplus_token = os.environ.get('PUSHPLUS_TOKEN')
-    serverChan_sendkey = os.environ.get('SERVERCHAN_SENDKEY')
-    weCom_tokens = os.environ.get('WECOM_TOKENS')
-    weCom_webhook = os.environ.get('WECOM_WEBHOOK')
-    bark_deviceKey = os.environ.get('BARK_DEVICEKEY')
-    feishu_deviceKey = os.environ.get('FEISHU_DEVICEKEY')
+    response = requests.post(url, json=payload, timeout=5)
+    data = response.json()
 
-    message_tokens = {
-        'pushplus_token': pushplus_token,
-        'serverChan_token': serverChan_sendkey,
-        'weCom_tokens': weCom_tokens,
-        'weCom_webhook': weCom_webhook,
-        'bark_deviceKey': bark_deviceKey,
-        'feishu_deviceKey': feishu_deviceKey,
+    if 'code' in data and data['code'] in ['RefreshTokenExpired', 'InvalidParameter.RefreshToken']:
+        return False, '', '', data['message']
+
+    nick_name, user_name = data['nick_name'], data['user_name']
+    name = nick_name if nick_name else user_name
+    access_token = data['access_token']
+    return access_token
+
+
+def sign_in(user):
+    access_token = get_access_token(aliyun_token.token[user])
+    url = 'https://member.aliyundrive.com/v1/activity/sign_in_list'
+    payload = {'isReward': False}
+    params = {'_rx-s': 'mobile'}
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    response = requests.post(url, json=payload, params=params, headers=headers, timeout=5)
+    data = response.json()
+    return data
+def sign_in_reward(day, user):
+    json_data = {
+        'signInDay': str(day),
     }
-
-    token_string = token_string.split(',')
-    ali = Aliyundrive()
-    message_all = []
-
-    for idx, token in enumerate(token_string):
-        result = ali.aliyundrive_check_in(token)
-        message_all.append(str(result))
-
-        if idx < len(token_string) - 1:
-            message_all.append('--')
-
-    title = '阿里云盘签到结果'
-    message_all = '\n'.join(message_all)
-    message_all = re.sub('\n+', '\n', message_all).rstrip('\n')
-
-    message_send = MessageSend()
-    message_send.send_all(message_tokens, title, message_all)
-
-    print('finish')
+    access_token = get_access_token(aliyun_token.token[user])
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.post('https://member.aliyundrive.com/v1/activity/sign_in_reward',
+                             headers=headers,
+                             json=json_data)
+    return response.json()
 
 
 if __name__ == '__main__':
-    main()
+    arr = ['13992772974', '17209072974', '17209073367', '17209073974',
+           '17209070297', '19034640815', '17320526936']
+    while True:
+        print(datetime.datetime.fromtimestamp(time.time()))
+        for x in arr:
+            print(x, str(sign_in([x]))[:40] + '}')
+            time.sleep(1)
+        time.sleep(24 * 60 * 60)
