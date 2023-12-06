@@ -50,6 +50,6 @@ if __name__ == '__main__':
     while True:
         print(datetime.datetime.fromtimestamp(time.time()))
         for x in arr:
-            print(x, str(sign_in([x]))[:40] + '}')
+            print(x, str(sign_in(x))[:40] + '}')
             time.sleep(1)
         time.sleep(24 * 60 * 60)
